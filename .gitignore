@@ -1,0 +1,9 @@
+# variáveis sensíveis
+.env
+
+# python
+__pycache__/
+*.pyc
+
+# arquivos do sistema
+Thumbs.db
