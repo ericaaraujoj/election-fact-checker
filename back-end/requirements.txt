@@ -1,0 +1,8 @@
+flask
+flask-cors
+pandas
+scikit-learn
+joblib
+requests
+python-dotenv
+git+https://github.com/GONZOsint/factcheckexplorer.git
