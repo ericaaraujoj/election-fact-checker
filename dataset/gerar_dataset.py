@@ -1,16 +1,30 @@
 from factcheckexplorer.factcheckexplorer import FactCheckLib
 
-queries = ["eleição", "bolsonaro", "lula", "pt", "campanha", "urna", "voto", "fraude"]
+queries = [
+    'eleição',
+    'bolsonaro',
+    'lula',
+    'pt',
+    'campanha',
+    'urna',
+    'voto',
+    'fraude',
+    'urna eletrônica',
+    'TSE',
+    'fraude eleitoral'
+]
 
 for q in queries:
-    print(f"🔎 Buscando: {q}")
+
+    print(f'Buscando: {q}')
 
     fact_check = FactCheckLib(
         query=q,
-        language=None, 
-        num_results=50
+        language='pt',
+        num_results=200,
+        csv_filename=f'dados_brutos/{q}.csv'
     )
 
     fact_check.process()
 
-print("Finalizado!")
+print('Finalizado!')

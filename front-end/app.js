@@ -1,90 +1,198 @@
-// Captura elementos do frontend
-const btn = document.getElementById("btnVerificar");
-const resultado = document.getElementById("resultado");
-const listaHistorico = document.getElementById("historico");
+const button = document.getElementById('btnVerificar')
 
-// Simula um dataset local (temporário)
-// FUTURO: será substituído por armazenamento real (banco de dados)
-let historico = [];
+button.addEventListener('click', async () => {
 
-// Evento de clique no botão
-btn.addEventListener("click", () => {
+    const texto = document.getElementById('inputText').value.trim();
 
-  // Captura texto digitado pelo usuário
-  const texto = document.getElementById("inputText").value.toLowerCase();
+    const resultadoDiv = document.getElementById('resultado');
 
-  // Validação: impede envio vazio
-  if (!texto) {
-    mostrarResultado("Digite uma dúvida.", "alerta");
-    return;
-  }
+    if (!texto) {
+        resultadoDiv.classList.remove('hidden');
+        resultadoDiv.innerHTML = `
+            <div class="card">
+                <h3>⚠️ Digite algo primeiro</h3>
+                <p>Você precisa escrever uma informação antes de verificar.</p>
+            </div>
+        `;
+        return;
+    }
 
-  // Simula tempo de processamento (API / IA)
-  mostrarResultado("🔎 Analisando...", "alerta");
+    resultadoDiv.classList.remove('hidden');
+    resultadoDiv.innerHTML = `<p>🔎 Analisando informação...</p>`;
 
-  setTimeout(() => {
+    try {
+        const resposta = await fetch('http://localhost:5000/factcheck', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ texto })
+        });
 
-    // será substituída por uma chamada ao backend (API em Python)
-    const analise = analisarTexto(texto);
+        const dados = await resposta.json();
 
-    // Exibe resultado na tela
-    mostrarResultado(analise.mensagem, analise.tipo);
-
-    // Salva no histórico (simulando dataset)
-    // FUTURO: será salvo no backend/database
-    salvarHistorico(texto, analise.mensagem);
-
-  }, 1500);
-});
+        console.log("RESPOSTA:", dados);
 
 
-// FUNÇÃO PRINCIPAL DE ANÁLISE (ATUALMENTE SIMULADA)
-function analisarTexto(texto) {
+        if (dados.resultado && Array.isArray(dados.resultado)) {
 
-  // SIMULAÇÃO ATUAL (TEMPORÁRIA)
-  // Usa palavras-chave para decidir resultado
-  const palavrasChave = ["urna", "fraude", "voto", "eleição","bolsonaro", "lula", "pt", "campanha"];
+            let cards = `
 
-  // Verifica se alguma palavra está presente
-  const encontrou = palavrasChave.some(p => texto.includes(p));
+                <div class="total-resultados">
+                    Mostrando os 2 resultados mais relevantes de ${dados.quantidade} encontrados.
+                </div>
 
-  // CASO 1 — Encontrou (simulação de fact-check)
-  if (encontrou) {
-    return {
-      mensagem: "✔ Informação encontrada.",
-      tipo: "sucesso"
-    };
-  }
+                <div class="descricao-resultados">
+                    Verificações encontradas com base na sua pesquisa:
+                </div>
+            `
 
-  // CASO 2 — Não encontrou (simulação de IA)
-  return {
-    mensagem: "⚠ Nenhum registro encontrado. Classificação por IA: POSSÍVEL DESINFORMAÇÃO.",
-    tipo: "alerta"
-  };
-}
+            dados.resultado.forEach(item => {
 
-// Função responsável por mostrar resultado na tela
-function mostrarResultado(mensagem, tipo) {
-  resultado.classList.remove("hidden", "sucesso", "alerta");
-  resultado.classList.add(tipo);
-  resultado.innerText = mensagem;
-}
+                let classeBadge = "falso";
 
+                if (item.classificacao === "Verdadeiro") {
+                    classeBadge = "verdadeiro";
+                }
+                else if (item.classificacao === "Parcialmente verdadeiro") {
+                    classeBadge = "parcial";
+                }
 
-// Simula armazenamento de dados (dataset local)
-function salvarHistorico(texto, resultadoTexto) {
+                cards += `
+        <div class="card">
 
-  // Armazena no array
-  historico.push({ texto, resultado: resultadoTexto });
+            <span class="badge ${classeBadge}">
+                ${item.classificacao}
+            </span>
 
-  // Exibe na tela (histórico visual)
-  const item = document.createElement("li");
-  item.textContent = `${texto} → ${resultadoTexto}`;
+            <h3>${item.afirmacao}</h3>
 
-  listaHistorico.appendChild(item);
-}
+            <p>
+                <strong>Fonte:</strong>
+                ${item.fonte}
+            </p>
 
-// Registro do Service Worker (PWA)
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js");
-}
+            <p>
+                <p class="titulo-noticia">
+                    ${item.titulo || ""}
+                </p>
+            </p>
+
+            <a href="${item.link}" target="_blank">
+                Ler verificação completa
+            </a>
+
+        </div>
+    `
+            })
+
+            cards += `
+
+                <div class="ia-box">
+
+                    <h3>🤖 Não encontrou exatamente o que procurava?</h3>
+
+                    <p>
+                        Utilize a Inteligência Artificial para realizar
+                        uma análise estimada da afirmação enviada.
+                    </p>
+
+                    <button type="button" id="btnIA">
+                         Analisar com IA
+                    </button>
+
+                </div>
+            `
+
+            resultadoDiv.innerHTML = cards
+
+            document.getElementById('btnIA').addEventListener('click', async (event) => {
+
+                event.preventDefault()
+
+                const loading = document.createElement("p")
+
+                loading.className = "loading-ia"
+
+                loading.innerHTML = "🤖 IA analisando afirmação..."
+
+                resultadoDiv.appendChild(loading)
+
+                const respostaIA = await fetch('http://localhost:5000/ml', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ texto })
+                })
+
+                if (!respostaIA.ok) {
+                    throw new Error("Erro ao consultar IA")
+                }
+
+                const dadosIA = await respostaIA.json()
+
+                console.log(dadosIA)
+
+                loading.remove()
+
+                document.querySelector('.ia-box').style.display = 'none'
+
+                resultadoDiv.innerHTML += `
+
+                    <div class="card ia-card">
+
+                        <span class="badge ia">
+                            Inteligência Artificial
+                        </span>
+
+                        <h3>Resultado da IA</h3>
+
+                        <p>
+                            <strong>Classificação:</strong>
+                            ${dadosIA.classificacao}
+                        </p>
+
+                        <p>
+                            <strong>Confiança:</strong>
+                            ${dadosIA.confianca}%
+                        </p>
+
+                        <div class="aviso-ia">
+
+                        ⚠️ Esta análise é uma estimativa produzida por um modelo de Machine Learning treinado com verificações públicas. <br> O resultado não substitui a consulta a fontes jornalísticas e verificadores de fatos especializados.
+
+                        </div>
+
+                    </div>
+                `
+            })
+
+        } else {
+
+            resultadoDiv.innerHTML = `
+
+                <div class="card ia-card">
+
+                    <span class="badge ia">
+                        Inteligência Artificial
+                    </span>
+
+                    <h3>Resultado da análise</h3>
+
+                    <p>
+                        ${dados.resultado}
+                    </p>
+
+                </div>
+            `
+        }
+
+    } catch (erro) {
+
+        resultadoDiv.innerHTML = `
+            <div class="card">
+                <h3>Erro</h3>
+                <p>Não foi possível realizar a análise.</p>
+            </div>
+        `
+    }
+})

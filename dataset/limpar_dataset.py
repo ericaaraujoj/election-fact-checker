@@ -1,15 +1,14 @@
 import pandas as pd
 
-# carregar dataset
-df = pd.read_csv("dataset_final.csv")
 
-# remover duplicados
-df = df.drop_duplicates()
+df = pd.read_csv('dataset_final.csv')
 
-# remover linhas vazias
-df = df.dropna()
 
-# salvar novo dataset
-df.to_csv("dataset_final_limpo.csv", index=False)
+df.drop_duplicates(inplace=True)
 
-print("Dataset limpo criado com sucesso!")
+df.dropna(inplace=True)
+
+
+df.to_csv('dataset_final_limpo.csv', index=False)
+
+print('Dataset limpo com sucesso!')
