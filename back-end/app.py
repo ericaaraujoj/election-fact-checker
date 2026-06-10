@@ -14,27 +14,56 @@ CORS(app)
 
 API_KEY = os.getenv("API_KEY")
 
-def salvar_consulta(texto, origem, resultado):
+def salvar_consulta(texto, origem, resultado, link_fonte="#", data_publicacao=None):
     import os
+    import pandas as pd
     from datetime import datetime
 
     try:
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-        pasta = os.path.abspath(os.path.join(BASE_DIR, "..", "dataset", "historico"))
+        pasta = os.path.abspath(os.path.join(BASE_DIR, "..", "dataset"))
         os.makedirs(pasta, exist_ok=True)
+        caminho = os.path.join(pasta, "dataset_final_limpo.csv")
 
-        caminho = os.path.join(pasta, "historico_consultas.csv")
+        print("🔥 PROCESSANDO SALVAMENTO EM:", caminho)
 
-        print("🔥 SALVANDO EM:", caminho)
+        # Trata a data de publicação (se não for enviada, usa a data atual)
+        if not data_publicacao:
+            data_publicacao = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        linha = f'"{datetime.now()}","{texto}","{origem}","{resultado}"\n'
+        # Limpa quebras de linha e aspas para a checagem e salvamento
+        texto_limpo = str(texto).replace("\n", " ").strip()
+        resultado_limpo = str(resultado).strip()
+        origem_limpa = str(origem).strip()
 
+        # ==========================================
+        # VERIFICAÇÃO DE DUPLICADOS COM PANDAS
+        # ==========================================
+        if os.path.exists(caminho):
+            try:
+                # Lê o CSV existente
+                df_existente = pd.read_csv(caminho)
+                
+                # Verifica se o texto já existe na coluna 'Claim'
+                # Usamos .astype(str).str.strip() para garantir que espaços extras não driblem a checagem
+                if texto_limpo in df_existente['Claim'].astype(str).str.strip().values:
+                    print(f"⚠️ CONSULTA IGNORADA: O texto já existe no dataset.")
+                    return  # Interrompe a função e não salva
+            except Exception as e:
+                print(f"⚠️ Erro ao ler CSV para checagem de duplicados (computando como arquivo vazio): {e}")
+
+        # Se passou pela checagem (ou o arquivo não existe), prepara a linha
+        # Escapa as aspas duplas internas para manter o padrão CSV válido
+        texto_csv = texto_limpo.replace('"', '""')
+        resultado_csv = resultado_limpo.replace('"', '""')
+        origem_csv = origem_limpa.replace('"', '""')
+
+        linha = f'"{texto_csv}","{origem_csv}","{link_fonte}","{resultado_csv}","{data_publicacao}","",""\n'
         arquivo_existe = os.path.exists(caminho)
 
         with open(caminho, "a", encoding="utf-8") as f:
             if not arquivo_existe:
-                f.write("data_hora,texto_pesquisado,origem,resultado\n")
+                f.write("Claim,Source Name,Source URL,Verdict,Review Publication Date,Image URL,Tags\n")
             f.write(linha)
 
         print("🔥 SALVO COM SUCESSO")
@@ -74,11 +103,10 @@ def factcheck():
         response = requests.get(url, params=params)
         data = response.json()
 
-
-        if "claims" in data:
+        # Garante que "claims" existe e não está vazio
+        if "claims" in data and data["claims"]:
 
             claims = data["claims"]
-
             resultados = []
 
             for claim in claims[:2]:
@@ -90,11 +118,7 @@ def factcheck():
                 print("TÍTULO:", review.get("title", "SEM TÍTULO"))
 
                 classificacao_original = review.get("textualRating", "")
-
-                classificacao = classificacao_original.lower()
-
-                # transforma underline em espaço
-                classificacao = classificacao.replace("_", " ")
+                classificacao = classificacao_original.lower().replace("_", " ")
 
                 if (
                     "falso" in classificacao
@@ -129,25 +153,29 @@ def factcheck():
                     "classificacao": classificacao,
                     "fonte": review["publisher"].get("name", "Fonte desconhecida"),
                     "titulo": review.get("title", ""),
-                    "link": review.get("url", "#")
+                    "link": review.get("url", "#"),
+                    "data_publicacao": review.get("reviewDate", None) 
                 })
 
-            resultado_final = "Sem resultado"
-
+            # Processa o salvamento se houver checagens extraídas com sucesso
             if resultados:
-                resultado_final = f"{resultados[0]['classificacao']} ({len(claims)} resultados)"
-            print("🔥 ENTROU NO SALVAR API")
-            salvar_consulta(
-                texto,
-                "Google Fact Check",
-                resultado_final
-            )
-            print("🔥 SALVOU COM SUCESSO API")
-            return jsonify({
-                "fonte": "Google Fact Check",
-                "quantidade": len(claims),
-                "resultado": resultados
-            })
+                primeiro_resultado = resultados[0]
+                
+                print("🔥 ENTROU NO SALVAR API")
+                salvar_consulta(
+                    texto=primeiro_resultado["afirmacao"],
+                    origem=primeiro_resultado["fonte"],           # Source Name
+                    resultado=primeiro_resultado["classificacao"], # Verdict
+                    link_fonte=primeiro_resultado["link"],         # Source URL
+                    data_publicacao=primeiro_resultado["data_publicacao"] # Review Publication Date
+                )
+                print("🔥 SALVOU COM SUCESSO API")
+
+                return jsonify({
+                    "fonte": "Google Fact Check",
+                    "quantidade": len(claims),
+                    "resultado": resultados
+                })
 
         return jsonify({
             "fonte": "Google Fact Check",
@@ -155,6 +183,7 @@ def factcheck():
         })
 
     except Exception as e:
+        print("💥 ERRO NA ROTA FACTCHECK:", str(e))
         return jsonify({
             "erro": "Erro ao consultar API",
             "detalhe": str(e)
@@ -184,14 +213,7 @@ def ml():
         confianca = round(max(probabilidades) * 100, 2)
 
         resultado_final = str(previsao) if previsao is not None else "Sem previsão"
-
-        print("🔥 ENTROU NO SALVAR ML")
-        salvar_consulta(
-            texto,
-            "Machine Learning",
-            resultado_final
-        )
-        print("🔥 SALVOU COM SUCESSO ML")
+        
         return jsonify({
             "fonte": "Machine Learning",
             "classificacao": str(previsao),
