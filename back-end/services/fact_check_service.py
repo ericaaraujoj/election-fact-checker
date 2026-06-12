@@ -1,6 +1,10 @@
 import requests
+import os
+from dotenv import load_dotenv
 
-API_KEY = 'SUA_CHAVE'
+load_dotenv()
+
+API_KEY = os.getenv("API_KEY")
 
 
 def buscar_fact_check(texto):
